@@ -35,22 +35,28 @@ const RideFeed = () => {
     fetchGender();
   }, [user]);
 
-  // --- LOGIC: RIDE EXPIRY (Time + 1 Hour) ---
+  // --- UPDATED LOGIC: RIDE EXPIRY (Time + 1 Hour) ---
   const isRideExpired = (ride) => {
     if (!ride.date || !ride.time) return false;
     
-    const [year, month, day] = ride.date.split('-');
-    const rideDate = new Date(year, month - 1, day);
-
+    // Parse Date (YYYY-MM-DD)
+    const [year, month, day] = ride.date.split('-').map(Number);
+    
+    // Parse Time (HH:MM AM/PM)
     const [timeStr, period] = ride.time.split(' ');
-    let [hours, minutes] = timeStr.split(':');
-    hours = parseInt(hours);
+    let [hours, minutes] = timeStr.split(':').map(Number);
+    
+    // Convert to 24-hour format
     if (period === 'PM' && hours !== 12) hours += 12;
     if (period === 'AM' && hours === 12) hours = 0;
 
-    rideDate.setHours(hours, parseInt(minutes), 0, 0);
+    // Create Date object
+    const rideDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    
+    // Calculate Expiry (Ride Time + 1 Hour Buffer)
     const oneHourLater = new Date(rideDate.getTime() + 60 * 60 * 1000);
     
+    // Check if current time is past expiry
     return new Date() > oneHourLater;
   };
 
@@ -113,16 +119,20 @@ const RideFeed = () => {
     // GENERATE THE SPECIFIC LINK
     const shareUrl = `${window.location.origin}/ride/${ride.id}`;
     
-    const text = `Join my ride from ${ride.from} to ${ride.to} on ${ride.date} at ${ride.time}! Click here to join: ${shareUrl}`;
-    
+    // 1. Create a clean message WITHOUT the link for the native share menu
+    const cleanText = `Join my ride from ${ride.from} to ${ride.to} on ${ride.date} at ${ride.time}!`;
+
     if (navigator.share) {
         navigator.share({ 
             title: 'Join VIT-AP Ride', 
-            text: text, 
-            url: shareUrl 
+            text: cleanText,  // Send text ONLY
+            url: shareUrl     // Send URL separately (System handles the attachment)
         }).catch(console.error);
     } else {
-        navigator.clipboard.writeText(text);
+        // 2. For Clipboard, we MUST manually add the link
+        const clipboardText = `${cleanText} Click here to join: ${shareUrl}`;
+        
+        navigator.clipboard.writeText(clipboardText);
         showModal({
             title: "Link Copied",
             message: "Ride link copied to clipboard!",
