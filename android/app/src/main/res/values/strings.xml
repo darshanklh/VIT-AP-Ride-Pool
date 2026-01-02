@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VIT-AP Ride Pool</string>
+    <string name="title_activity_main">VIT-AP Ride Pool</string>
+    <string name="package_name">com.vitap.ridepool</string>
+    <string name="custom_url_scheme">com.vitap.ridepool</string>
+</resources>
