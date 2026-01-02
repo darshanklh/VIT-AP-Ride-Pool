@@ -110,9 +110,17 @@ const RideFeed = () => {
   };
 
   const handleShare = (ride) => {
-    const text = `Join my ride from ${ride.from} to ${ride.to} on ${ride.date} at ${ride.time}! Open VIT-AP Ride Pool to join.`;
+    // GENERATE THE SPECIFIC LINK
+    const shareUrl = `${window.location.origin}/ride/${ride.id}`;
+    
+    const text = `Join my ride from ${ride.from} to ${ride.to} on ${ride.date} at ${ride.time}! Click here to join: ${shareUrl}`;
+    
     if (navigator.share) {
-        navigator.share({ title: 'Join Ride', text: text, url: window.location.href });
+        navigator.share({ 
+            title: 'Join VIT-AP Ride', 
+            text: text, 
+            url: shareUrl 
+        }).catch(console.error);
     } else {
         navigator.clipboard.writeText(text);
         showModal({

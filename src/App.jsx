@@ -4,7 +4,7 @@ import { RideProvider } from './context/RideContext';
 import { UserProvider, useUser } from './context/UserContext'; 
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- IMPORT THE NEW MODAL CONTEXT ---
+// --- IMPORT THE MODAL CONTEXT ---
 import { ModalProvider } from './context/ModalContext';
 
 // Import Pages
@@ -14,6 +14,7 @@ import CreateRide from './pages/CreateRide';
 import Login from './pages/Login';
 import ChatData from './pages/ChatData'; 
 import Profile from './pages/Profile'; 
+import JoinRide from './pages/JoinRide'; // <--- IMPORT THIS
 
 // --- IMPORT THE GENDER MODAL ---
 import GenderModal from './components/GenderModal'; 
@@ -62,6 +63,10 @@ const MainLayout = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/rides" element={<ProtectedRoute><RideFeed /></ProtectedRoute>} />
+            
+            {/* ADD THE JOIN RIDE ROUTE HERE */}
+            <Route path="/ride/:id" element={<ProtectedRoute><JoinRide /></ProtectedRoute>} />
+
             <Route path="/create" element={<ProtectedRoute><CreateRide /></ProtectedRoute>} />
             <Route path="/chats" element={<ProtectedRoute><ChatData /></ProtectedRoute>} /> 
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} /> 
