@@ -72,19 +72,25 @@ const ChatData = () => {
   });
 
   return (
-    <div className="h-full pt-6 pb-32 px-4 flex flex-col">
+    // CHANGED: Removed px-4 and pb-32 from here. Added h-[100dvh] for better mobile height handling.
+    <div className="h-full pt-6 flex flex-col">
       {!selectedChat ? (
         <>
-          <div className="flex p-1 bg-surface rounded-xl mb-6 border border-white/10">
-            <button onClick={() => setActiveTab('group')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition ${activeTab === 'group' ? 'bg-primary text-white shadow' : 'text-gray-400'}`}>
-                <Users size={16} /> Groups
-            </button>
-            <button onClick={() => setActiveTab('private')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition ${activeTab === 'private' ? 'bg-secondary text-white shadow' : 'text-gray-400'}`}>
-                <MessageSquare size={16} /> Private
-            </button>
+          {/* Header Section - Fixed at top */}
+          <div className="px-4 mb-6 flex-none">
+            <div className="flex p-1 bg-surface rounded-xl border border-white/10">
+                <button onClick={() => setActiveTab('group')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2Ql transition ${activeTab === 'group' ? 'bg-primary text-whiteQl shadow' : 'text-gray-400'}`}>
+                    <Users size={16} /> Groups
+                </button>
+                <button onClick={() => setActiveTab('private')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition ${activeTab === 'private' ? 'bg-secondary text-white shadow' : 'text-gray-400'}`}>
+                    <MessageSquare size={16} /> Private
+                </button>
+            </div>
           </div>
 
-          <div className="space-y-3">
+          {/* List Section - Scrollable Area */}
+          {/* CHANGED: Added flex-1, overflow-y-auto, and moved pb-32 here */}
+          <div className="flex-1 overflow-y-auto px-4 pb-32 space-y-3">
             {activeTab === 'group' ? (
                 myRides.length > 0 ? myRides.map(ride => (
                   <div key={ride.id} onClick={() => setSelectedChat({type: 'group', ...ride})} className="bg-surface p-4 rounded-xl border border-white/10 hover:bg-white/5 cursor-pointer flex justify-between items-center">
@@ -149,8 +155,8 @@ const ChatInterface = ({ chat, onBack, user }) => {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10">
+    <div className="flex flex-col h-full px-4 pb-2"> {/* Added padding for chat view */}
+      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10 flex-none pt-2">
         <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-full text-white"><ArrowLeft size={20} /></button>
         <div>
           <h3 className="font-bold text-white">{chat.type === 'group' ? chat.to : chat.name}</h3>
@@ -170,7 +176,7 @@ const ChatInterface = ({ chat, onBack, user }) => {
           )
         })}
       </div>
-      <form onSubmit={handleSend} className="relative">
+      <form onSubmit={handleSend} className="relative flex-none">
         <input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="w-full bg-surface border border-white/10 rounded-full py-3 pl-4 pr-12 text-white text-sm focus:outline-none focus:border-primary" />
         <button type="submit" className="absolute right-2 top-2 bg-primary p-1.5 rounded-full text-white"><Send size={16} /></button>
       </form>
