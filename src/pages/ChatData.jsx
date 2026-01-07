@@ -121,6 +121,8 @@ const ChatData = () => {
   );
 };
 
+// ... (ChatData component remains exactly the same) ...
+
 const ChatInterface = ({ chat, onBack, user }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -155,14 +157,20 @@ const ChatInterface = ({ chat, onBack, user }) => {
   };
 
   return (
-    <div className="flex flex-col h-full px-4 pb-2"> {/* Added padding for chat view */}
-      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10 flex-none pt-2">
+    // FIX APPLIED HERE: Changed 'pb-2' to 'pb-28'
+    // This pushes the entire chat interface up, clearing the bottom navigation bar.
+    <div className="flex flex-col h-full px-4 pb-28 pt-2"> 
+      
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10 flex-none">
         <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-full text-white"><ArrowLeft size={20} /></button>
         <div>
           <h3 className="font-bold text-white">{chat.type === 'group' ? chat.to : chat.name}</h3>
           <p className="text-xs text-green-400">{chat.type === 'group' ? 'Group Chat' : 'Private Chat'}</p>
         </div>
       </div>
+
+      {/* Messages Area - YES, this handles scrolling properly */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-2 mb-4 scrollbar-hide">
         {messages.map(msg => {
           const isMe = msg.senderId === user.uid;
@@ -176,6 +184,8 @@ const ChatInterface = ({ chat, onBack, user }) => {
           )
         })}
       </div>
+
+      {/* Input Area - Now visible because of the parent padding */}
       <form onSubmit={handleSend} className="relative flex-none">
         <input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="w-full bg-surface border border-white/10 rounded-full py-3 pl-4 pr-12 text-white text-sm focus:outline-none focus:border-primary" />
         <button type="submit" className="absolute right-2 top-2 bg-primary p-1.5 rounded-full text-white"><Send size={16} /></button>
