@@ -1,6 +1,7 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { db } from '../firebase'; 
-import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
+// FIX: Merged all imports into one line to prevent "duplicate declaration" errors
+import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 const RideContext = createContext();
 
@@ -18,14 +19,11 @@ export const RideProvider = ({ children }) => {
         id: doc.id,
         ...doc.data()
       }));
-      console.log("✅ Rides Fetched Successfully:", ridesData); // Check your Console for this
+      console.log("✅ Rides Fetched Successfully:", ridesData); 
       setRides(ridesData);
       setLoading(false);
     }, (error) => {
-      // THIS IS THE IMPORTANT PART
       console.error("❌ FIREBASE READ ERROR:", error.message);
-      
-      // Common fix for Index error:
       if (error.message.includes("index")) {
         console.log("👉 Open the link in the error message above to create the index!");
       }
@@ -40,8 +38,9 @@ export const RideProvider = ({ children }) => {
       await addDoc(collection(db, "rides"), {
         ...rideDetails,
         createdAt: new Date(),
-        // Add passengers array for the Chat feature
-        passengers: [] 
+        passengers: [],
+        isPaused: false, // Initialize pause state
+        forceAllow: false // Initialize force allow state (New Feature)
       });
     } catch (error) {
       console.error("Error adding ride: ", error);
@@ -57,8 +56,39 @@ export const RideProvider = ({ children }) => {
     }
   };
 
+  // 4. TOGGLE PAUSE
+  const toggleRidePause = async (rideId, currentStatus) => {
+    try {
+      const rideRef = doc(db, "rides", rideId);
+      await updateDoc(rideRef, { 
+        isPaused: !currentStatus 
+      });
+    } catch (error) {
+      console.error("Error toggling pause:", error);
+    }
+  };
+
+  // 5. TOGGLE FORCE ALLOW (New Feature)
+  const toggleForceAllow = async (rideId, currentStatus) => {
+    try {
+        const rideRef = doc(db, "rides", rideId);
+        await updateDoc(rideRef, { 
+          forceAllow: !currentStatus 
+        });
+      } catch (error) {
+        console.error("Error toggling force allow:", error);
+      }
+  };
+
   return (
-    <RideContext.Provider value={{ rides, addRide, deleteRide, loading }}>
+    <RideContext.Provider value={{ 
+      rides, 
+      addRide, 
+      deleteRide, 
+      toggleRidePause, 
+      toggleForceAllow, // <--- Export this
+      loading 
+    }}>
       {children}
     </RideContext.Provider>
   );

@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRides } from '../context/RideContext';
 import { useUser } from '../context/UserContext';
-import { useModal } from '../context/ModalContext'; // <--- IMPORT MODAL HOOK
-import { Trash2, Filter, Plus, UserPlus, LogOut, ArrowRight, Car, Info, MessageCircle, X, Share2, Shield, Clock } from 'lucide-react';
+import { useModal } from '../context/ModalContext'; 
+import { Trash2, Filter, Plus, UserPlus, LogOut, ArrowRight, Car, Info, MessageCircle, X, Share2, Shield, Clock, PauseCircle, PlayCircle, Ban, Unlock, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { doc, updateDoc, arrayUnion, arrayRemove, deleteDoc, getDoc } from 'firebase/firestore'; 
 import { db } from '../firebase';
 
 const RideFeed = () => {
   const navigate = useNavigate();
-  const { rides, deleteRide } = useRides();
+  const { rides, deleteRide, toggleRidePause, toggleForceAllow } = useRides();
   const { user } = useUser();
-  const { showModal } = useModal(); // <--- GET THE FUNCTION
+  const { showModal } = useModal(); 
   
   const [filterDate, setFilterDate] = useState('');
   const [filterDest, setFilterDest] = useState('All');
@@ -35,29 +35,30 @@ const RideFeed = () => {
     fetchGender();
   }, [user]);
 
-  // --- UPDATED LOGIC: RIDE EXPIRY (Time + 1 Hour) ---
-  const isRideExpired = (ride) => {
-    if (!ride.date || !ride.time) return false;
-    
-    // Parse Date (YYYY-MM-DD)
+  // --- TIME HELPERS ---
+  const getRideDateTime = (ride) => {
+    if (!ride.date || !ride.time) return null;
     const [year, month, day] = ride.date.split('-').map(Number);
-    
-    // Parse Time (HH:MM AM/PM)
     const [timeStr, period] = ride.time.split(' ');
     let [hours, minutes] = timeStr.split(':').map(Number);
-    
-    // Convert to 24-hour format
     if (period === 'PM' && hours !== 12) hours += 12;
     if (period === 'AM' && hours === 12) hours = 0;
+    return new Date(year, month - 1, day, hours, minutes, 0, 0);
+  };
 
-    // Create Date object
-    const rideDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
-    
-    // Calculate Expiry (Ride Time + 1 Hour Buffer)
-    const oneHourLater = new Date(rideDate.getTime() + 60 * 60 * 1000);
-    
-    // Check if current time is past expiry
+  // Logic: Ride is expired if current time > Ride Time + 1 Hour
+  const isRideExpired = (ride) => {
+    const rideDate = getRideDateTime(ride);
+    if (!rideDate) return false;
+    const oneHourLater = new Date(rideDate.getTime() + 60 * 60 * 1000); 
     return new Date() > oneHourLater;
+  };
+
+  // Logic: Is the current time strictly past the scheduled time?
+  const isPastScheduledTime = (ride) => {
+    const rideDate = getRideDateTime(ride);
+    if (!rideDate) return false;
+    return new Date() > rideDate;
   };
 
   const getAvatar = (name, photo) => photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=random&color=fff`;
@@ -75,11 +76,9 @@ const RideFeed = () => {
     return uniquePassengers;
   };
 
-  // --- LOGIC: MESSAGE RESTRICTION ---
+  // --- LOGIC HANDLERS ---
   const handleMessageClick = (targetUser, ride) => {
     if (targetUser.uid === user.uid) return;
-
-    // Check if current user is part of the ride (Host or Passenger)
     const isHost = ride.hostId === user.uid;
     const isPassenger = ride.passengers?.some(p => p.uid === user.uid);
 
@@ -91,18 +90,14 @@ const RideFeed = () => {
         });
         return;
     }
-
     navigate('/chats', { state: { startChat: { type: 'private', uid: targetUser.uid, name: targetUser.name, photo: targetUser.photo } } });
   };
 
-  // --- LOGIC: VIEW MEMBERS RESTRICTION ---
   const toggleViewMembers = (ride) => {
     if (viewMembers === ride.id) {
         setViewMembers(null);
         return;
     }
-
-    // STRICT: Only females can view members of Ladies Only rides
     if (ride.ladiesOnly && userGender !== 'Female') {
         showModal({
             title: "Security Check",
@@ -111,63 +106,49 @@ const RideFeed = () => {
         });
         return;
     }
-
     setViewMembers(ride.id);
   };
 
   const handleShare = (ride) => {
-    // GENERATE THE SPECIFIC LINK
     const shareUrl = `${window.location.origin}/ride/${ride.id}`;
-    
-    // 1. Create a clean message WITHOUT the link for the native share menu
     const cleanText = `Join my ride from ${ride.from} to ${ride.to} on ${ride.date} at ${ride.time}!`;
 
     if (navigator.share) {
-        navigator.share({ 
-            title: 'Join VIT-AP Ride', 
-            text: cleanText,  // Send text ONLY
-            url: shareUrl     // Send URL separately (System handles the attachment)
-        }).catch(console.error);
+        navigator.share({ title: 'Join VIT-AP Ride', text: cleanText, url: shareUrl }).catch(console.error);
     } else {
-        // 2. For Clipboard, we MUST manually add the link
-        const clipboardText = `${cleanText} Click here to join: ${shareUrl}`;
-        
-        navigator.clipboard.writeText(clipboardText);
-        showModal({
-            title: "Link Copied",
-            message: "Ride link copied to clipboard!",
-            type: "alert"
-        });
+        navigator.clipboard.writeText(`${cleanText} Click here to join: ${shareUrl}`);
+        showModal({ title: "Link Copied", message: "Ride link copied to clipboard!", type: "alert" });
     }
   };
 
-  // --- CONFIRMATION: JOIN ---
   const handleJoin = async (ride) => {
     if (!user) return;
 
-    if (ride.ladiesOnly && userGender !== 'Female') {
+    // Time Check
+    if (isPastScheduledTime(ride) && !ride.forceAllow) {
         showModal({
-            title: "Access Denied",
-            message: "⛔ Restriction: This ride is marked as Ladies Only.",
+            title: "Ride Departed",
+            message: "This ride's scheduled time has passed. You cannot join unless the host enables 'Late Join'.",
             type: "alert"
         });
         return;
     }
 
+    // Gender Check
+    if (ride.ladiesOnly && userGender !== 'Female') {
+        showModal({ title: "Access Denied", message: "⛔ Restriction: This ride is marked as Ladies Only.", type: "alert" });
+        return;
+    }
+
+    // Join Confirmation
     showModal({
         title: "Join Ride?",
         message: `Confirm joining ride to ${ride.to}? The host will see your details.`,
         type: "confirm",
         onConfirm: async () => {
             const rideRef = doc(db, "rides", ride.id);
-            const passengerData = {
-              uid: user.uid,
-              name: user.displayName,
-              photo: user.photoURL
-            };
-            await updateDoc(rideRef, {
-              passengers: arrayUnion(passengerData)
-            });
+            const passengerData = { uid: user.uid, name: user.displayName, photo: user.photoURL };
+            await updateDoc(rideRef, { passengers: arrayUnion(passengerData) });
         }
     });
   };
@@ -175,27 +156,15 @@ const RideFeed = () => {
   const handleJoinWaitlist = async (ride) => {
     if (!user) return;
     if (ride.ladiesOnly && userGender !== 'Female') {
-        showModal({
-            title: "Access Denied",
-            message: "⛔ Restriction: This ride is marked as Ladies Only.",
-            type: "alert"
-        });
+        showModal({ title: "Access Denied", message: "⛔ Restriction: This ride is marked as Ladies Only.", type: "alert" });
         return;
     }
-    
-    // Direct join for waitlist? Or confirm? Let's just do it and show success.
     const rideRef = doc(db, "rides", ride.id);
     const passengerData = { uid: user.uid, name: user.displayName, photo: user.photoURL };
     await updateDoc(rideRef, { waitlist: arrayUnion(passengerData) });
-    
-    showModal({
-        title: "Success",
-        message: "Joined Waitlist! If a spot opens, you will be next.",
-        type: "alert"
-    });
+    showModal({ title: "Success", message: "Joined Waitlist! If a spot opens, you will be next.", type: "alert" });
   };
 
-  // --- CONFIRMATION: LEAVE ---
   const handleLeave = async (ride) => {
     showModal({
         title: "Leave Ride?",
@@ -205,11 +174,8 @@ const RideFeed = () => {
             const rideRef = doc(db, "rides", ride.id);
             const currentList = ride.passengers || [];
             const passengerToRemove = currentList.find(p => p.uid === user.uid);
-              
             if(passengerToRemove) {
-              await updateDoc(rideRef, {
-                passengers: arrayRemove(passengerToRemove)
-              });
+              await updateDoc(rideRef, { passengers: arrayRemove(passengerToRemove) });
             }
         }
     });
@@ -217,21 +183,17 @@ const RideFeed = () => {
 
   const handleRemovePassenger = async (ride, passenger) => {
     if (!user || user.uid !== ride.hostId) return; 
-    
     showModal({
         title: "Remove Passenger?",
         message: `Are you sure you want to remove ${passenger.name} from this ride?`,
         type: "danger",
         onConfirm: async () => {
             const rideRef = doc(db, "rides", ride.id);
-            await updateDoc(rideRef, {
-              passengers: arrayRemove(passenger)
-            });
+            await updateDoc(rideRef, { passengers: arrayRemove(passenger) });
         }
     });
   };
 
-  // --- CONFIRMATION: HOST RESIGN ---
   const handleHostLeave = async (ride) => {
     showModal({
         title: "Resign as Host?",
@@ -245,7 +207,6 @@ const RideFeed = () => {
               const randomIndex = Math.floor(Math.random() * safeList.length);
               const newHost = safeList[randomIndex];
               const updatedPassengers = safeList.filter(p => p.uid !== newHost.uid);
-
               const rideRef = doc(db, "rides", ride.id);
               await updateDoc(rideRef, {
                 host: newHost.name,
@@ -269,14 +230,37 @@ const RideFeed = () => {
     });
   };
 
+  // --- NEW: PAUSE/RESUME HANDLER ---
+  const handlePauseResume = (ride) => {
+    const action = ride.isPaused ? "Resume" : "Pause";
+    showModal({
+        title: `${action} Booking?`,
+        message: ride.isPaused 
+            ? "This will allow users to join your ride again." 
+            : "This will temporarily stop new users from joining.",
+        type: "confirm",
+        onConfirm: () => toggleRidePause(ride.id, ride.isPaused)
+    });
+  };
+
+  // --- NEW: FORCE ALLOW HANDLER ---
+  const handleForceAllowToggle = (ride) => {
+    const action = ride.forceAllow ? "Close" : "Open";
+    showModal({
+        title: `${action} Late Boarding?`,
+        message: ride.forceAllow 
+            ? "This will strictly stop anyone from joining since the time has passed." 
+            : "⚠️ The scheduled time has passed. Enabling this will allow users to join despite the delay.",
+        type: "confirm",
+        onConfirm: () => toggleForceAllow(ride.id, ride.forceAllow)
+    });
+  };
+
   const filteredRides = rides.filter(ride => {
     const matchesDest = filterDest === 'All' || ride.to === filterDest || ride.from === filterDest;
     const matchesDate = filterDate === '' || ride.date === filterDate;
     const isValidRoute = ride.from !== ride.to; 
-    
-    // HIDE EXPIRED RIDES FROM FEED
     const notExpired = !isRideExpired(ride);
-
     return matchesDest && matchesDate && isValidRoute && notExpired;
   });
 
@@ -323,6 +307,10 @@ const RideFeed = () => {
             const seatsLeft = totalSeats - totalHumans;
             const isToday = new Date(ride.date).toDateString() === new Date().toDateString();
             const onWaitlist = ride.waitlist?.some(p => p.uid === user?.uid);
+            
+            // Logic Constants
+            const isLate = isPastScheduledTime(ride);
+            const canJoinLate = ride.forceAllow;
 
             return (
               <motion.div 
@@ -343,6 +331,7 @@ const RideFeed = () => {
                       )}
                 </div>
                 
+                {/* RIDE INFO SECTION */}
                 <div className="flex gap-2 mb-2 mt-2">
                     <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded inline-block ${ride.vehicleType === 'Auto' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-blue-500/20 text-blue-500'}`}>{ride.vehicleType || 'Ride'}</span>
                     {ride.ladiesOnly && (
@@ -381,17 +370,68 @@ const RideFeed = () => {
                    </div>
                 </div>
 
+                {/* --- SMART BUTTON LOGIC --- */}
                 <div className="flex gap-2">
                     {isHost ? (
-                       <button onClick={() => handleHostLeave(ride)} className="flex-1 bg-white/5 text-gray-400 py-3 rounded-xl font-bold text-sm hover:bg-red-500/10 hover:text-red-400 transition flex items-center justify-center gap-2"><LogOut size={16} /> Resign</button>
+                       <>
+                         {/* HOST CONTROLS */}
+                         {seatsLeft > 0 ? (
+                             isLate ? (
+                                // LATE MODE: Show Force Allow Toggle
+                                <button 
+                                   onClick={() => handleForceAllowToggle(ride)}
+                                   className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition ${
+                                     ride.forceAllow 
+                                       ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
+                                       : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                                   }`}
+                                 >
+                                   {ride.forceAllow ? <Lock size={16} /> : <Unlock size={16} />}
+                                   {ride.forceAllow ? "Close Late Joins" : "Enable Late Join"}
+                                 </button>
+                             ) : (
+                                // NORMAL MODE: Pause/Resume
+                                <button 
+                                   onClick={() => handlePauseResume(ride)}
+                                   className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition ${
+                                     ride.isPaused 
+                                       ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                                       : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
+                                   }`}
+                                 >
+                                   {ride.isPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+                                   {ride.isPaused ? "Resume" : "Pause"}
+                                 </button>
+                             )
+                         ) : (
+                             // Logic fix: Host cannot pause/resume a full ride
+                             <div className="flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-gray-500/10 text-gray-500 cursor-not-allowed border border-gray-500/20">
+                                 Ride Full
+                             </div>
+                         )}
+
+                         <button onClick={() => handleHostLeave(ride)} className="flex-1 bg-white/5 text-gray-400 py-3 rounded-xl font-bold text-sm hover:bg-red-500/10 hover:text-red-400 transition flex items-center justify-center gap-2">
+                            <LogOut size={16} /> Resign
+                         </button>
+                       </>
                     ) : isPassenger ? (
                        <button onClick={() => handleLeave(ride)} className="flex-1 bg-red-500/10 text-red-400 border border-red-500/20 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><LogOut size={16} /> Leave Ride</button>
+                    ) : ride.isPaused ? (
+                       <button disabled className="flex-1 bg-gray-500/10 text-gray-500 border border-gray-500/20 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                          <Ban size={16} /> Booking Paused
+                       </button>
                     ) : seatsLeft <= 0 ? (
                        onWaitlist ? 
                        <button disabled className="flex-1 bg-orange-500/20 text-orange-400 py-3 rounded-xl font-bold text-sm">On Waitlist</button> :
                        <button onClick={() => handleJoinWaitlist(ride)} className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Clock size={16} /> Join Waitlist</button>
+                    ) : isLate && !canJoinLate ? (
+                        // LATE CHECK: If late and NOT forced allowed -> Block
+                        <button disabled className="flex-1 bg-red-500/10 text-red-500 border border-red-500/20 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                           <Clock size={16} /> Ride Departed
+                        </button>
                     ) : (
-                       <button onClick={() => handleJoin(ride)} className="flex-1 bg-white text-black py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-200 transition"><UserPlus size={16} /> Join Ride</button>
+                        // Standard Join (Includes Late Join if allowed)
+                       <button onClick={() => handleJoin(ride)} className="flex-1 bg-white text-black py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-200 transition"><UserPlus size={16} /> {isLate ? "Join Late" : "Join Ride"}</button>
                     )}
                 </div>
 
