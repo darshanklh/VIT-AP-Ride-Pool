@@ -190,16 +190,9 @@ const CreateRide = () => {
           <div>
             <label className="flex items-center gap-2 text-xs text-gray-400 ml-1 mb-1"><Calendar size={12} /> Date</label>
             <input 
-              /* --- FIX STARTS HERE --- */
-              type="text" 
-              placeholder="dd / mm / yyyy" 
-              onFocus={(e) => (e.target.type = "date")} 
-              onBlur={(e) => {
-                if (!e.target.value) e.target.type = "text"; 
-              }}
-              /* ----------------------- */
+              type="date" 
               required
-              className="w-full p-4 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 outline-none focus:border-primary [color-scheme:dark] text-sm font-medium"
+              className="w-full p-4 bg-black/20 border border-white/10 rounded-xl text-white outline-none focus:border-primary [color-scheme:dark] text-sm font-medium"
               onChange={(e) => setFormData({...formData, date: e.target.value})}
             />
           </div>
