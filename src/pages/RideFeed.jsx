@@ -287,9 +287,17 @@ const RideFeed = () => {
              {locations.map(loc => <option key={loc} value={loc} className="text-black">{loc}</option>)}
            </select>
            <input 
-             type="date" 
-             className="bg-black/20 text-white p-2 rounded-lg border border-white/10 text-sm outline-none focus:border-primary [color-scheme:dark]"
-             value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
+             /* --- FIX APPLIED HERE --- */
+             type="text"
+             placeholder="dd / mm / yyyy"
+             onFocus={(e) => (e.target.type = "date")}
+             onBlur={(e) => {
+                if (!e.target.value) e.target.type = "text";
+             }}
+             /* ------------------------ */
+             className="bg-black/20 text-white placeholder-gray-500 p-2 rounded-lg border border-white/10 text-sm outline-none focus:border-primary [color-scheme:dark]"
+             value={filterDate} 
+             onChange={(e) => setFilterDate(e.target.value)}
            />
         </div>
       </div>
