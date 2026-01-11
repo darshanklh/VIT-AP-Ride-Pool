@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRides } from '../context/RideContext';
 import { useUser } from '../context/UserContext';
+import { useModal } from '../context/ModalContext'; // <--- Import Modal Hook
 import { MapPin, Calendar, Clock, ChevronDown, Shield } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore'; 
 import { db } from '../firebase'; 
@@ -10,11 +11,11 @@ const CreateRide = () => {
   const navigate = useNavigate();
   const { addRide } = useRides(); 
   const { user } = useUser();
+  const { showModal } = useModal(); // <--- Get showModal function
 
   const [userGender, setUserGender] = useState(null);
   const [time, setTime] = useState({ hour: '12', minute: '00', period: 'AM' });
 
-  // 1. UPDATE DEFAULT FROM LOCATION
   const [formData, setFormData] = useState({
     vehicleType: 'Auto',
     from: 'VIT-AP Campus', 
@@ -24,7 +25,6 @@ const CreateRide = () => {
     ladiesOnly: false 
   });
 
-  // 2. UPDATE LOCATIONS ARRAY
   const locations = ['VIT-AP Campus', 'Vijayawada Railway Station', 'PNBS Bus Stand', 'Gannavaram Airport', 'Guntur'];
   const hours = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
   const minutes = ['00', '15', '30', '45'];
@@ -57,7 +57,6 @@ const CreateRide = () => {
     const newFrom = e.target.value;
     let newTo = formData.to;
     
-    // 3. UPDATE SMART SWITCH LOGIC
     if (newTo === newFrom) {
       newTo = newFrom === 'VIT-AP Campus' ? 'Vijayawada Railway Station' : 'VIT-AP Campus';
     }
@@ -67,10 +66,41 @@ const CreateRide = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // --- CHECK 1: SAME LOCATION ---
     if (formData.from === formData.to) {
-      alert("From and To locations cannot be the same!");
+      showModal({
+        title: "Invalid Route",
+        message: "From and To locations cannot be the same!",
+        type: "alert"
+      });
       return;
     }
+
+    // --- CHECK 2: PAST TIME VALIDATION ---
+    const [year, month, day] = formData.date.split('-').map(Number);
+    let rideDate = new Date(year, month - 1, day); 
+
+    let selectedHour = parseInt(time.hour);
+    const selectedMinute = parseInt(time.minute);
+
+    if (time.period === 'PM' && selectedHour !== 12) {
+      selectedHour += 12;
+    }
+    if (time.period === 'AM' && selectedHour === 12) {
+      selectedHour = 0;
+    }
+
+    rideDate.setHours(selectedHour, selectedMinute, 0, 0);
+
+    if (rideDate < new Date()) {
+      showModal({
+        title: "Invalid Time",
+        message: "⚠️ Cannot schedule a ride in the past! Please select a future time.",
+        type: "alert" 
+      });
+      return; 
+    }
+    // -------------------------------------
 
     const isLadiesOnly = userGender === 'Female' ? formData.ladiesOnly : false;
     const formattedTime = `${time.hour}:${time.minute} ${time.period}`;
@@ -84,7 +114,9 @@ const CreateRide = () => {
       hostPhoto: user.photoURL,
       price: "Split",
       passengers: [],
-      waitlist: [] 
+      waitlist: [],
+      isPaused: false,
+      forceAllow: false
     };
     
     await addRide(newRide);
@@ -158,9 +190,16 @@ const CreateRide = () => {
           <div>
             <label className="flex items-center gap-2 text-xs text-gray-400 ml-1 mb-1"><Calendar size={12} /> Date</label>
             <input 
-              type="date" 
+              /* --- FIX STARTS HERE --- */
+              type="text" 
+              placeholder="dd / mm / yyyy" 
+              onFocus={(e) => (e.target.type = "date")} 
+              onBlur={(e) => {
+                if (!e.target.value) e.target.type = "text"; 
+              }}
+              /* ----------------------- */
               required
-              className="w-full p-4 bg-black/20 border border-white/10 rounded-xl text-white outline-none focus:border-primary [color-scheme:dark] text-sm font-medium"
+              className="w-full p-4 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 outline-none focus:border-primary [color-scheme:dark] text-sm font-medium"
               onChange={(e) => setFormData({...formData, date: e.target.value})}
             />
           </div>
